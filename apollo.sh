@@ -76,7 +76,7 @@ CR_GCC4=~/Android/Toolchains/aarch64-linux-android-4.9/bin/aarch64-linux-android
 CR_GCC9=~/Android/Toolchains/aarch64-linux-gnu-9.x/bin/aarch64-linux-gnu-
 CR_GCC12=~/Android/Toolchains/aarch64-linux-gnu-12.x/bin/aarch64-linux-gnu-
 CR_GCC13=~/Android/Toolchains/aarch64-linux-gnu-13.x/bin/aarch64-linux-gnu-
-CR_CLANG=~/Android/Toolchains/clang-r353983c/bin
+CR_CLANG=~/Android/Toolchains/clang-r383902-jopp
 #####################################################
 
 # Compiler Selection
@@ -103,11 +103,33 @@ compile="make"
 CR_COMPILER="$CR_GCC13"
 fi
 if [ $CR_COMPILER = "5" ]; then
-export CLANG_PATH=$CR_CLANG
-export CROSS_COMPILE=$CR_GCC4
-export CLANG_TRIPLE=aarch64-linux-gnu-
-compile="make CC=clang ARCH=arm64"
-export PATH=${CLANG_PATH}:${PATH}
+# Check packages
+if ! dpkg-query -W -f='${Status}' gcc-arm-linux-gnueabi  | grep "ok installed"; then
+	echo " gcc-arm-linux-gnueabi is missing, please install with sudo apt-get install gcc-arm-linux-gnueabi"
+	exit 0;
+fi
+# Check packages
+if ! dpkg-query -W -f='${Status}' gcc-aarch64-linux-gnu  | grep "ok installed"; then
+	echo " gcc-aarch64-linux-gnu is missing, please install with sudo apt-get install gcc-aarch64-linux-gnu"
+	exit 0;
+fi
+export PATH=$CR_CLANG/bin:$CR_CLANG/lib:${PATH}
+export CLANG_TRIPLE=$CR_GCC9
+export CROSS_COMPILE=$CR_GCC9
+export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+export CC=$CR_CLANG/bin/clang
+#export REAL_CC=$CR_CLANG/bin/clang
+#export LD=$CR_CLANG/bin/ld.lld
+#export AR=$CR_CLANG/bin/llvm-ar
+#export NM=$CR_CLANG/bin/llvm-nm
+#export OBJCOPY=$CR_CLANG/bin/llvm-objcopy
+#export OBJDUMP=$CR_CLANG/bin/llvm-objdump
+#export READELF=$CR_CLANG/bin/llvm-readelf
+#export STRIP=$CR_CLANG/bin/llvm-strip
+#export LLVM=1
+#export LLVM_IAS=1
+export ARCH=arm64 && export SUBARCH=arm64
+compile="make ARCH=arm64 CC=clang"
 CR_COMPILER="$CR_CLANG"
 fi
 }
@@ -508,7 +530,7 @@ echo "1) $CR_GCC4 (GCC 4.9)"
 echo "2) $CR_GCC9 (GCC 9.x)" 
 echo "3) $CR_GCC12 (GCC 12.x)" 
 echo "4) $CR_GCC13 (GCC 13.x)" 
-echo "5) $CR_CLANG (CLANG)" 
+echo "5) $CR_CLANG (CLANG 11)"
 echo " "
 read -p "Please select your compiler (1-5) > " CR_COMPILER
 echo " "
