@@ -17,7 +17,11 @@
 #include <linux/workqueue.h>
 #include <trace/events/kmem.h>
 
-#define USE_THREAD defined(CONFIG_PREEMPT_RT_FULL)
+#if defined(CONFIG_PREEMPT_RT_FULL)
+	#define USE_THREAD 1
+#else
+	#define USE_THREAD 0
+#endif
 
 enum {
     MEMINFO_MEMFREE,
@@ -237,7 +241,7 @@ static void do_read(void)
                 break;
             case MEMINFO_CACHED:
                 // total_swapcache_pages is not exported so the result is slightly different, but hopefully not too much
-                value = (global_page_state(NR_FILE_PAGES) /*- total_swapcache_pages()*/ - info.bufferram) * PAGE_SIZE;
+                value = (global_node_page_state(NR_FILE_PAGES) /*- total_swapcache_pages()*/ - info.bufferram) * PAGE_SIZE;
                 break;
             case MEMINFO_SLAB:
                 value = (global_page_state(NR_SLAB_RECLAIMABLE) + global_page_state(NR_SLAB_UNRECLAIMABLE)) * PAGE_SIZE;
