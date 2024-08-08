@@ -18,7 +18,7 @@ ifeq ($(CONFIG_RELOCATABLE), y)
 # Pass --no-apply-dynamic-relocs to restore pre-binutils-2.27 behaviour
 # for relative relocs, since this leads to better Image compression
 # with the relocation offsets always being zero.
-LDFLAGS_vmlinux		+= -pie -shared -Bsymbolic \
+LDFLAGS_vmlinux		+= -shared -Bsymbolic -z notext -z norelro \
 			$(call ld-option, --no-apply-dynamic-relocs)
 endif
 
@@ -55,6 +55,10 @@ $(warning LSE atomics not supported by binutils)
 endif
 
 ifeq ($(CONFIG_COMPAT_VDSO), y)
+ifeq ($(LLVM_IAS),1)
+   export CONFIG_VDSO32 := y
+   vdso32 := -DCONFIG_VDSO32=1
+else
   CROSS_COMPILE_ARM32 ?= $(CONFIG_CROSS_COMPILE_ARM32:"%"=%)
    # Check that the user has provided a valid prefix for the 32-bit toolchain.
   # To prevent selecting the system $(cc-name) by default, the prefix is not
@@ -85,6 +89,7 @@ ifeq ($(CONFIG_COMPAT_VDSO), y)
     vdso32 := -DCONFIG_VDSO32=1
   endif
 endif
+endif
 
 ifeq ($(cc-name),clang)
 # This is a workaround for https://bugs.llvm.org/show_bug.cgi?id=30792.
@@ -102,12 +107,14 @@ KBUILD_AFLAGS	+= $(lseinstr) $(vdso32)
 ifeq ($(CONFIG_CPU_BIG_ENDIAN), y)
 KBUILD_CPPFLAGS	+= -mbig-endian
 AS		+= -EB
-LD		+= -EB
+# Prefer the baremetal ELF build target, but not all toolchains include
+LDFLAGS		+= -EB $(call ld-option, -maarch64elfb, -maarch64linuxb)
 UTS_MACHINE	:= aarch64_be
 else
 KBUILD_CPPFLAGS	+= -mlittle-endian
 AS		+= -EL
-LD		+= -EL
+# Same as above, prefer ELF but fall back to linux target if needed.
+LDFLAGS		+= -EL $(call ld-option, -maarch64elf, -maarch64linux)
 UTS_MACHINE	:= aarch64
 endif
 
