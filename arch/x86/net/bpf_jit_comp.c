@@ -15,8 +15,6 @@
 #include <asm/nospec-branch.h>
 #include <linux/bpf.h>
 
-int bpf_jit_enable __read_mostly;
-
 /*
  * assembly code in arch/x86/net/bpf_jit.S
  */
@@ -490,13 +488,6 @@ static int do_jit(struct bpf_prog *bpf_prog, int *addrs, u8 *image,
 			break;
 
 		case BPF_LD | BPF_IMM | BPF_DW:
-			if (insn[1].code != 0 || insn[1].src_reg != 0 ||
-			    insn[1].dst_reg != 0 || insn[1].off != 0) {
-				/* verifier must catch invalid insns */
-				pr_err("invalid BPF_LD_IMM64 insn\n");
-				return -EINVAL;
-			}
-
 			/* optimization: if imm64 is zero, use 'xor <dst>,<dst>'
 			 * to save 7 bytes.
 			 */
@@ -853,7 +844,7 @@ xadd:			if (is_imm8(insn->off))
 			func = (u8 *) __bpf_call_base + imm32;
 			jmp_offset = func - (image + addrs[i]);
 			if (seen_ld_abs) {
-				reload_skb_data = bpf_helper_changes_skb_data(func);
+				reload_skb_data = bpf_helper_changes_pkt_data(func);
 				if (reload_skb_data) {
 					EMIT1(0x57); /* push %rdi */
 					jmp_offset += 22; /* pop, mov, sub, mov */
@@ -883,7 +874,7 @@ xadd:			if (is_imm8(insn->off))
 			}
 			break;
 
-		case BPF_JMP | BPF_CALL | BPF_X:
+		case BPF_JMP | BPF_TAIL_CALL:
 			emit_bpf_tail_call(&prog);
 			break;
 
@@ -1067,7 +1058,7 @@ common_load:
 
 		ilen = prog - temp;
 		if (ilen > BPF_MAX_INSN_SIZE) {
-			pr_err("bpf_jit_compile fatal insn size error\n");
+			pr_err("bpf_jit: fatal insn size error\n");
 			return -EFAULT;
 		}
 
@@ -1083,10 +1074,6 @@ common_load:
 		prog = temp;
 	}
 	return proglen;
-}
-
-void bpf_jit_compile(struct bpf_prog *prog)
-{
 }
 
 struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
@@ -1170,9 +1157,10 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 
 	if (image) {
 		bpf_flush_icache(header, image + proglen);
-		set_memory_ro((unsigned long)header, header->pages);
+		bpf_jit_binary_lock_ro(header);
 		prog->bpf_func = (void *)image;
 		prog->jited = 1;
+		prog->jited_len = proglen;
 	} else {
 		prog = orig_prog;
 	}
@@ -1184,19 +1172,4 @@ out:
 		bpf_jit_prog_release_other(prog, prog == orig_prog ?
 					   tmp : orig_prog);
 	return prog;
-}
-
-void bpf_jit_free(struct bpf_prog *fp)
-{
-	unsigned long addr = (unsigned long)fp->bpf_func & PAGE_MASK;
-	struct bpf_binary_header *header = (void *)addr;
-
-	if (!fp->jited)
-		goto free_filter;
-
-	set_memory_rw(addr, header->pages);
-	bpf_jit_binary_free(header);
-
-free_filter:
-	bpf_prog_unlock_free(fp);
 }
