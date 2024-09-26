@@ -82,6 +82,60 @@ DEFAULT_SELINUX=2  # enforce
 DEFAULT_KSU=y      # enabled
 DEFAULT_CLEAN=n    # dirty
 #####################################################
+READY=$CR_DIR/buildtools
+# Function for first-time setup
+first_time_setup() {
+    local packages=(
+        "zstd"
+        "git"
+        "gnupg"
+        "flex"
+        "bison"
+        "build-essential"
+        "zip"
+        "curl"
+        "zlib1g-dev"
+        "libc6-dev-i386"
+        "x11proto-core-dev"
+        "libx11-dev"
+        "lib32z1-dev"
+        "libgl1-mesa-dev"
+        "libxml2-utils"
+        "xsltproc"
+        "unzip"
+        "fontconfig"
+        "python-dev-is-python3"
+    )
+    
+    echo "First Time Setup: The following packages are required for the build tools:"
+    printf '%s\n' "${packages[@]}"
+    
+    read -p "Do you want to install these packages? This requires sudo privileges. (y/n) > " INSTALL_BUILD_TOOLS
+    
+    if [ "$INSTALL_BUILD_TOOLS" = "y" ]; then
+        echo "Installing required packages..."
+        sudo apt update
+        sudo apt install -y "${packages[@]}"
+        
+        for package in "${packages[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$package" | grep "ok installed" > /dev/null; then
+                echo "Failed to install $package. Please try installing it manually."
+                exit 1
+            fi
+        done
+        
+        # Create the file if all packages are installed
+        touch "$READY"
+	echo " "
+	echo " "
+        echo "$READY created successfully, Delete to re-run."
+	echo " "
+	echo " "     
+    else
+        echo "Please install the required packages with 'sudo apt install <package>' and try again."
+        exit 1
+    fi
+}
 
 # Compiler Selection
 BUILD_COMPILER()
@@ -629,6 +683,15 @@ BUILD_DEBUG
 fi
 echo " "
 echo " "
+if [ ! -f "$READY" ]; then
+    first_time_setup
+echo "----------------------------------------------"
+else
+    echo "Build tools are installed."
+echo "----------------------------------------------"
+echo " "
+echo " "
+fi
 echo "1) starlte" "   2) star2lte" "   3) crownlte"
 echo "4) starltekor" "5) star2ltekor" "6) crownltekor"
 echo  " "
